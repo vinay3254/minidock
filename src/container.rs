@@ -209,6 +209,15 @@ fn setup_isolated_filesystem(rootfs: &Path) -> Result<()> {
         None::<&str>,
     );
 
+    let container_etc = abs_rootfs.join("etc");
+    let _ = std::fs::create_dir_all(&container_etc);
+    if Path::new("/etc/resolv.conf").exists() {
+        let container_resolv = container_etc.join("resolv.conf");
+        let _ = std::fs::copy("/etc/resolv.conf", &container_resolv);
+    }
+    let container_hosts = container_etc.join("hosts");
+    let _ = std::fs::write(&container_hosts, "127.0.0.1 localhost backend\n::1 localhost\n");
+
     let old_root = abs_rootfs.join(".old_root");
     std::fs::create_dir_all(&old_root)
         .with_context(|| format!("failed to create old_root at {}", old_root.display()))?;
