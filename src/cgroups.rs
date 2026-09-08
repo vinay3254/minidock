@@ -20,15 +20,25 @@ pub struct ContainerCgroups {
 impl ContainerCgroups {
     /// Attaches the given host PID to the cgroup hierarchy for all active controllers.
     pub fn attach(&self, host_pid: i32) -> anyhow::Result<()> {
+        let is_v2 = self.memory.is_some() && self.memory == self.cpu;
+        let mut seen = std::collections::HashSet::new();
         for path in [self.memory.as_ref(), self.cpu.as_ref()]
             .into_iter()
             .flatten()
         {
-            let tasks = path.join("tasks");
-            std::fs::write(&tasks, format!("{host_pid}\n")).with_context(|| {
+            if !seen.insert(path) {
+                continue;
+            }
+            let target_file =
+                if is_v2 || (path.join("cgroup.procs").exists() && !path.join("tasks").exists()) {
+                    path.join("cgroup.procs")
+                } else {
+                    path.join("tasks")
+                };
+            std::fs::write(&target_file, format!("{host_pid}\n")).with_context(|| {
                 format!(
-                    "failed to attach PID {host_pid} to cgroup tasks file {}",
-                    tasks.display()
+                    "failed to attach PID {host_pid} to cgroup file {}",
+                    target_file.display()
                 )
             })?;
         }
@@ -37,14 +47,16 @@ impl ContainerCgroups {
 
     /// Removes empty container cgroup directories if they exist.
     pub fn remove_empty(&self) -> anyhow::Result<()> {
+        let mut seen = std::collections::HashSet::new();
         for path in [self.memory.as_ref(), self.cpu.as_ref()]
             .into_iter()
             .flatten()
         {
+            if !seen.insert(path) {
+                continue;
+            }
             if path.exists() {
-                std::fs::remove_dir(path).with_context(|| {
-                    format!("failed to remove cgroup directory {}", path.display())
-                })?;
+                let _ = std::fs::remove_dir(path);
             }
         }
         Ok(())
@@ -52,10 +64,11 @@ impl ContainerCgroups {
 }
 
 /// Discovers and manages cgroup v1 controllers on the host.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CgroupManager {
     pub memory_mount: Option<PathBuf>,
     pub cpu_mount: Option<PathBuf>,
+    pub unified_mount: Option<PathBuf>,
 }
 
 impl CgroupManager {
@@ -64,16 +77,53 @@ impl CgroupManager {
         Self {
             memory_mount,
             cpu_mount,
+            unified_mount: None,
         }
     }
 
-    /// Detects cgroup v1 controllers from the host `/proc` files.
+    pub fn new_v2(unified_mount: PathBuf) -> Self {
+        Self {
+            memory_mount: None,
+            cpu_mount: None,
+            unified_mount: Some(unified_mount),
+        }
+    }
+
+    /// Detects cgroup controllers from the host `/proc` files (supports v1 and v2).
     pub fn detect() -> anyhow::Result<Self> {
         let mountinfo = std::fs::read_to_string("/proc/self/mountinfo")
             .context("failed to read /proc/self/mountinfo")?;
         let self_cgroup = std::fs::read_to_string("/proc/self/cgroup")
             .context("failed to read /proc/self/cgroup")?;
-        Self::discover_from(&mountinfo, &self_cgroup)
+        match Self::discover_from(&mountinfo, &self_cgroup) {
+            Ok(mgr) => Ok(mgr),
+            Err(_) => Self::discover_v2(&mountinfo, &self_cgroup),
+        }
+    }
+
+    /// Discovers cgroup v2 unified mount.
+    pub fn discover_v2(mountinfo: &str, _self_cgroup: &str) -> anyhow::Result<Self> {
+        for line in mountinfo.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let (pre, post) = match line.split_once(" - ") {
+                Some(pair) => pair,
+                None => continue,
+            };
+            let pre_fields: Vec<&str> = pre.split_whitespace().collect();
+            let post_fields: Vec<&str> = post.split_whitespace().collect();
+            if pre_fields.len() < 5 || post_fields.is_empty() {
+                continue;
+            }
+            let mount_point = pre_fields[4];
+            let fstype = post_fields[0];
+            if fstype == "cgroup2" {
+                return Ok(Self::new_v2(PathBuf::from(mount_point)));
+            }
+        }
+        anyhow::bail!("no cgroup2 mount found");
     }
 
     /// Discovers cgroup v1 controller paths from `mountinfo` and `self_cgroup` content strings.
@@ -158,11 +208,52 @@ impl CgroupManager {
         Ok(Self {
             memory_mount,
             cpu_mount,
+            unified_mount: None,
         })
     }
 
     /// Creates container cgroup directories under active controllers and configures limits.
     pub fn create(&self, id: uuid::Uuid, limits: Limits) -> anyhow::Result<ContainerCgroups> {
+        if let Some(ref base) = self.unified_mount {
+            if limits.memory_bytes.is_none() && limits.cpu_percent.is_none() {
+                return Ok(ContainerCgroups {
+                    memory: None,
+                    cpu: None,
+                });
+            }
+            let cgroup_dir = base.join("minidock").join(id.to_string());
+            std::fs::create_dir_all(&cgroup_dir).with_context(|| {
+                format!(
+                    "failed to create cgroup v2 directory at {}",
+                    cgroup_dir.display()
+                )
+            })?;
+
+            if let Some(bytes) = limits.memory_bytes {
+                let mem_file = cgroup_dir.join("memory.max");
+                if let Err(e) = std::fs::write(&mem_file, format!("{bytes}\n")) {
+                    let _ = std::fs::remove_dir(&cgroup_dir);
+                    return Err(e)
+                        .with_context(|| format!("failed to write to {}", mem_file.display()));
+                }
+            }
+
+            if let Some(percent) = limits.cpu_percent {
+                let cpu_file = cgroup_dir.join("cpu.max");
+                let quota = std::cmp::max(1000, 100_000 * (percent as u64) / 100);
+                if let Err(e) = std::fs::write(&cpu_file, format!("{quota} 100000\n")) {
+                    let _ = std::fs::remove_dir(&cgroup_dir);
+                    return Err(e)
+                        .with_context(|| format!("failed to write to {}", cpu_file.display()));
+                }
+            }
+
+            return Ok(ContainerCgroups {
+                memory: Some(cgroup_dir.clone()),
+                cpu: Some(cgroup_dir),
+            });
+        }
+
         let memory = if let Some(bytes) = limits.memory_bytes {
             let base = self.memory_mount.as_ref().ok_or_else(|| {
                 anyhow::anyhow!(
@@ -464,6 +555,7 @@ mod tests {
         let mgr = CgroupManager {
             memory_mount: Some(mem_base.clone()),
             cpu_mount: Some(cpu_base.clone()),
+            unified_mount: None,
         };
 
         let id = uuid::Uuid::new_v4();
@@ -526,6 +618,7 @@ mod tests {
         let mgr = CgroupManager {
             memory_mount: None,
             cpu_mount: Some(cpu_base.clone()),
+            unified_mount: None,
         };
 
         let id = uuid::Uuid::new_v4();
@@ -554,6 +647,7 @@ mod tests {
         let mgr = CgroupManager {
             memory_mount: Some(mem_base),
             cpu_mount: None,
+            unified_mount: None,
         };
 
         let id = uuid::Uuid::new_v4();
@@ -577,6 +671,7 @@ mod tests {
         let mgr = CgroupManager {
             memory_mount: Some(PathBuf::from("/mock/memory")),
             cpu_mount: Some(PathBuf::from("/mock/cpu")),
+            unified_mount: None,
         };
         let cgroups = mgr.create(uuid::Uuid::new_v4(), Limits::default()).unwrap();
         assert_eq!(cgroups.memory, None);
@@ -597,6 +692,7 @@ mod tests {
         let mgr = CgroupManager {
             memory_mount: None,
             cpu_mount: Some(cpu_base),
+            unified_mount: None,
         };
         let limits = Limits {
             memory_bytes: None,
@@ -612,5 +708,64 @@ mod tests {
             cpu: Some(PathBuf::from("/nonexistent/path/cpu")),
         };
         assert!(cgroups.remove_empty().is_ok());
+    }
+
+    #[test]
+    fn mock_create_cgroup_v2() {
+        let tmp = tempfile::tempdir().unwrap();
+        let unified_base = tmp.path().join("cgroup2");
+        std::fs::create_dir_all(&unified_base).unwrap();
+
+        let mgr = CgroupManager {
+            memory_mount: None,
+            cpu_mount: None,
+            unified_mount: Some(unified_base),
+        };
+
+        let id = uuid::Uuid::new_v4();
+        let limits = Limits {
+            memory_bytes: Some(64 * 1024 * 1024),
+            cpu_percent: Some(50),
+        };
+
+        let cgroups = mgr.create(id, limits).unwrap();
+        let mem_cg = cgroups.memory.as_ref().unwrap();
+        let cpu_cg = cgroups.cpu.as_ref().unwrap();
+        assert_eq!(mem_cg, cpu_cg);
+
+        let mem_limit_file = mem_cg.join("memory.max");
+        let cpu_quota_file = cpu_cg.join("cpu.max");
+        assert!(mem_limit_file.exists());
+        assert!(cpu_quota_file.exists());
+
+        assert_eq!(
+            std::fs::read_to_string(&mem_limit_file).unwrap().trim(),
+            "67108864"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&cpu_quota_file).unwrap().trim(),
+            "50000 100000"
+        );
+
+        cgroups.attach(12345).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(mem_cg.join("cgroup.procs"))
+                .unwrap()
+                .trim(),
+            "12345"
+        );
+
+        std::fs::remove_file(mem_cg.join("cgroup.procs")).unwrap();
+        std::fs::remove_file(mem_limit_file).unwrap();
+        std::fs::remove_file(cpu_quota_file).unwrap();
+
+        cgroups.remove_empty().unwrap();
+        assert!(!mem_cg.exists());
+    }
+
+    #[test]
+    fn discovers_v2_when_cgroup2_present() {
+        let mgr = CgroupManager::discover_v2(V2_ONLY_MOUNTINFO, SELF_CGROUP_V2).unwrap();
+        assert_eq!(mgr.unified_mount, Some(PathBuf::from("/sys/fs/cgroup")));
     }
 }

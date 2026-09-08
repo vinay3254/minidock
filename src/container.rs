@@ -386,6 +386,12 @@ pub fn run(request: RunRequest, store: StateStore) -> Result<i32> {
         .or_else(|| container_cgroups.cpu.clone())
         .or_else(|| {
             cgroup_manager
+                .unified_mount
+                .as_ref()
+                .map(|m| m.join("minidock").join(id.to_string()))
+        })
+        .or_else(|| {
+            cgroup_manager
                 .memory_mount
                 .as_ref()
                 .map(|m| m.join("minidock").join(id.to_string()))
