@@ -199,6 +199,16 @@ fn setup_isolated_filesystem(rootfs: &Path) -> Result<()> {
     )
     .with_context(|| format!("failed to bind-mount rootfs at {}", abs_rootfs.display()))?;
 
+    let container_dev = abs_rootfs.join("dev");
+    let _ = std::fs::create_dir_all(&container_dev);
+    let _ = mount(
+        Some("/dev"),
+        &container_dev,
+        None::<&str>,
+        MsFlags::MS_BIND | MsFlags::MS_REC,
+        None::<&str>,
+    );
+
     let old_root = abs_rootfs.join(".old_root");
     std::fs::create_dir_all(&old_root)
         .with_context(|| format!("failed to create old_root at {}", old_root.display()))?;

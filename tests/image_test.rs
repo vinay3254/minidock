@@ -323,3 +323,16 @@ fn extraction_allows_relative_symlinks_staying_inside_rootfs() {
     assert!(destination.join("a/.bin/foo").is_symlink());
 }
 
+#[test]
+fn extracts_word_updated_rootfs_archives() {
+    let base = std::path::Path::new("/home/vinay/WORD-UPDATED");
+    for img in ["cloudflared-rootfs.tar.gz", "backend-rootfs.tar.gz", "frontend-rootfs.tar.gz"] {
+        let p = base.join(img);
+        if p.exists() {
+            let temp = tempfile::tempdir().unwrap();
+            let dest = temp.path().join("rootfs");
+            let res = minidock::image::extract_rootfs(&p, &dest);
+            assert!(res.is_ok(), "failed to extract {}: {:?}", img, res.err());
+        }
+    }
+}
