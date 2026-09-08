@@ -283,3 +283,43 @@ fn build_image_rejects_symlink_output_pointing_into_context() {
     let error = minidock::image::build_image(&context, &outside_symlink).unwrap_err();
     assert!(error.to_string().contains("inside context directory"));
 }
+
+#[test]
+fn extraction_allows_relative_symlinks_staying_inside_rootfs() {
+    let temp = tempfile::tempdir().unwrap();
+    let image = temp.path().join("in_root_relative.tar.gz");
+    let destination = temp.path().join("rootfs");
+
+    let file = std::fs::File::create(&image).unwrap();
+    let enc = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+    let mut builder = tar::Builder::new(enc);
+
+    let data = b"bin content";
+    let mut f_header = tar::Header::new_gnu();
+    f_header.set_size(data.len() as u64);
+    f_header.set_mode(0o755);
+    f_header.set_cksum();
+    builder
+        .append_data(&mut f_header, "a/pkg/bin/foo", &data[..])
+        .unwrap();
+
+    let mut l_header = tar::Header::new_gnu();
+    l_header.set_entry_type(tar::EntryType::Symlink);
+    l_header.set_size(0);
+    l_header.set_mode(0o777);
+    l_header.set_cksum();
+    builder
+        .append_link(&mut l_header, "a/.bin/foo", "../pkg/bin/foo")
+        .unwrap();
+
+    builder.into_inner().unwrap().finish().unwrap();
+
+    let res = minidock::image::extract_rootfs(&image, &destination);
+    assert!(
+        res.is_ok(),
+        "in-root relative symlink should be allowed: {:?}",
+        res
+    );
+    assert!(destination.join("a/.bin/foo").is_symlink());
+}
+

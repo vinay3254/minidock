@@ -57,14 +57,34 @@ fn validate_symlink_target(target: &Path, path: &Path) -> anyhow::Result<()> {
         path.display(),
         target.display()
     );
-    anyhow::ensure!(
-        target
-            .components()
-            .all(|part| !matches!(part, Component::ParentDir)),
-        "symlink {} target contains parent directory reference: {}",
-        path.display(),
-        target.display()
-    );
+
+    let mut depth: usize = path.parent().map_or(0, |p| p.components().count());
+
+    for part in target.components() {
+        match part {
+            Component::ParentDir => {
+                if depth == 0 {
+                    anyhow::bail!(
+                        "symlink {} escapes rootfs: target contains parent directory reference: {}",
+                        path.display(),
+                        target.display()
+                    );
+                }
+                depth -= 1;
+            }
+            Component::Normal(_) => {
+                depth += 1;
+            }
+            Component::RootDir => {
+                anyhow::bail!(
+                    "symlink {} has absolute target: {}",
+                    path.display(),
+                    target.display()
+                );
+            }
+            Component::CurDir | Component::Prefix(_) => {}
+        }
+    }
     Ok(())
 }
 
@@ -238,14 +258,30 @@ fn walk_and_append<W: std::io::Write>(
                 rel_path.display(),
                 target.display()
             );
-            anyhow::ensure!(
-                target
-                    .components()
-                    .all(|part| !matches!(part, Component::ParentDir)),
-                "symlink {} target escapes rootfs: {}",
-                rel_path.display(),
-                target.display()
-            );
+            let mut depth: usize = rel_path.parent().map_or(0, |p| p.components().count());
+            for part in target.components() {
+                match part {
+                    Component::ParentDir => {
+                        if depth == 0 {
+                            anyhow::bail!(
+                                "symlink {} target escapes rootfs: {}",
+                                rel_path.display(),
+                                target.display()
+                            );
+                        }
+                        depth -= 1;
+                    }
+                    Component::Normal(_) => depth += 1,
+                    Component::RootDir => {
+                        anyhow::bail!(
+                            "symlink {} target is absolute: {}",
+                            rel_path.display(),
+                            target.display()
+                        );
+                    }
+                    _ => {}
+                }
+            }
             builder
                 .append_path_with_name(&full_path, &rel_path)
                 .with_context(|| format!("archiving symlink {}", rel_path.display()))?;
