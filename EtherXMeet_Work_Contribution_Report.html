@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EtherXMeet — Engineering & Architecture Contribution Report</title>
+  <style>
+    :root {
+      --bg: #090A0F;
+      --card-bg: #11131A;
+      --card-subtle: #161922;
+      --border: #222736;
+      --border-accent: #373E54;
+      --text: #F1F5F9;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+      --accent: #6366F1;
+      --accent-soft: rgba(99, 102, 241, 0.12);
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --success: #10B981;
+      --success-soft: rgba(16, 185, 129, 0.12);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --mono: "SF Mono", "Consolas", "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.6;
+      padding: 40px 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .doc-container {
+      max-width: 900px;
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Header & Title */
+    .doc-header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 28px;
+      margin-bottom: 36px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #FFFFFF;
+      margin-bottom: 8px;
+    }
+    .doc-subtitle {
+      font-size: 16px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Meta Grid */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      background: var(--card-subtle);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-top: 20px;
+      font-size: 13.5px;
+    }
+    .meta-item { display: flex; flex-direction: column; gap: 2px; }
+    .meta-label { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .meta-value { color: var(--text); font-weight: 500; }
+
+    /* Sections */
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #FFFFFF;
+      margin: 36px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--accent);
+      margin: 20px 0 8px;
+    }
+    p {
+      color: var(--text-muted);
+      font-size: 14.5px;
+      margin-bottom: 14px;
+    }
+
+    /* Callout */
+    .callout {
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 10px 10px 0;
+      padding: 14px 18px;
+      margin: 18px 0;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    /* Workflow Cards */
+    .workflow-card {
+      background: var(--card-subtle);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+      transition: border-color 0.2s;
+    }
+    .workflow-card:hover { border-color: var(--border-accent); }
+    .wf-title {
+      font-size: 14.5px;
+      font-weight: 600;
+      color: #FFFFFF;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .wf-num {
+      background: var(--accent);
+      color: #FFFFFF;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+    ul.wf-list {
+      list-style-type: none;
+      padding-left: 4px;
+    }
+    ul.wf-list li {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      position: relative;
+      padding-left: 18px;
+      margin-bottom: 6px;
+    }
+    ul.wf-list li::before {
+      content: "•";
+      color: var(--accent);
+      position: absolute;
+      left: 4px;
+      font-weight: bold;
+    }
+
+    /* Tables */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 20px 0;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+    th {
+      background: #181B24;
+      color: #FFFFFF;
+      font-weight: 600;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+    td.commit-hash {
+      font-family: var(--mono);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    td.highlight {
+      color: #FFFFFF;
+      font-weight: 500;
+    }
+
+    /* Footer */
+    .doc-footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="doc-container">
+    <div class="doc-header">
+      <span class="badge">Architecture & Contribution Report</span>
+      <h1>EtherXMeet</h1>
+      <div class="doc-subtitle">
+        Decentralized Video Conferencing & Real-Time Collaboration Platform<br>
+        Full-Stack Engineering, Smart Contracts & Workflow Documentation
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span class="meta-label">Lead Engineer & Architect</span>
+          <span class="meta-value">Vinay G K (vinay3254 / vinaygk219@gmail.com)</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Repository</span>
+          <span class="meta-value">github.com/vinay3254/NXTMEEt (EtherXMeet)</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Blockchain Target</span>
+          <span class="meta-value">Polygon Amoy Testnet & Mainnet</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Core Architecture</span>
+          <span class="meta-value">React (Vite), WebRTC Mesh, Node/Socket.IO, Solidity</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1 -->
+    <h2>1. Executive Summary</h2>
+    <p>
+      <strong>EtherXMeet</strong> is a modern decentralized video conferencing and live collaboration workspace designed to combine standard consumer video usability (instant room join, screen sharing, zero setup friction) with Web3 cryptographic guarantees (on-chain state management, token-gated access, embedded gasless wallets, and verifiable IPFS meeting receipts).
+    </p>
+    <p>
+      Vinay G K led the architectural design and full-stack implementation as the sole core author across 26 commits, delivering smart contracts on Polygon, an interactive WebRTC signaling system, an embedded wallet subsystem, and high-performance in-browser collaboration engines.
+    </p>
+    <div class="callout">
+      <strong>Core Engineering Deliverable:</strong> A production-grade decentralized meeting suite that allows standard users to join frictionless conferences instantly, while enabling Web3 power users to leverage token gating, on-chain attendance verification, and automated NFT receipt minting.
+    </div>
+
+    <!-- Section 2 -->
+    <h2>2. End-to-End System Workflow</h2>
+    <p>The system workflow spans five connected stages across the client, backend signaling gateway, and Polygon smart contracts:</p>
+
+    <div class="workflow-card">
+      <div class="wf-title"><span class="wf-num">1</span> Authentication & Embedded Wallet Initialization</div>
+      <ul class="wf-list">
+        <li>User signs in via standard credentials (JWT) or Google OAuth.</li>
+        <li><code>WalletContext</code> auto-initializes an encrypted client-side <code>ethers.js</code> wallet in <code>localStorage</code>.</li>
+        <li>The backend operator faucet drips gas (MATIC/POL) to new accounts via <code>POST /api/wallet/fund</code> on Polygon Amoy.</li>
+        <li>MetaMask or Web3 hardware wallets can be seamlessly attached without breaking standard flows.</li>
+      </ul>
+    </div>
+
+    <div class="workflow-card">
+      <div class="wf-title"><span class="wf-num">2</span> Meeting Provisioning, Token Gating & On-Chain Creation</div>
+      <ul class="wf-list">
+        <li>Host creates a room and configures meeting rules (token gates, password protection, recording permissions).</li>
+        <li>If token gating is enabled, <code>TokenGateModal</code> validates attendee ERC-20 / ERC-721 token balances on-chain.</li>
+        <li>Host anchors the meeting on Polygon via <code>MeetingRegistry.createMeeting(meetingId, metadataCID)</code>.</li>
+      </ul>
+    </div>
+
+    <div class="workflow-card">
+      <div class="wf-title"><span class="wf-num">3</span> WebRTC Mesh Conferencing & Signaling Gateway</div>
+      <ul class="wf-list">
+        <li>Participants enter the room; <code>backend/src/signaling.js</code> manages peer room allocations over Socket.IO.</li>
+        <li>The client-side <code>useWebRTC</code> hook establishes peer-to-peer mesh connections with ICE candidate trickle and track renegotiation.</li>
+        <li>Audio, video, and screen-sharing tracks render in adaptive responsive video grid / filmstrip layouts.</li>
+      </ul>
+    </div>
+
+    <div class="workflow-card">
+      <div class="wf-title"><span class="wf-num">4</span> Real-Time Audio, Speech & Productivity Suite</div>
+      <ul class="wf-list">
+        <li><strong>Live Transcript:</strong> Continuous speech-to-text with timestamps and speaker attribution via Web Speech API.</li>
+        <li><strong>Ambient Sound Mixer:</strong> 8 client-side synthesized soundscapes generated procedurally via Web Audio API.</li>
+        <li><strong>Interactive Whiteboard:</strong> Collaborative multi-user canvas with live socket synchronization.</li>
+        <li><strong>Smart Agenda Timer:</strong> Section-by-section countdown tracking with overtime alarms.</li>
+        <li><strong>Meeting Analytics:</strong> Real-time engagement score, speaker talk-time distribution, and live word clouds.</li>
+      </ul>
+    </div>
+
+    <div class="workflow-card">
+      <div class="wf-title"><span class="wf-num">5</span> Session Finalization, IPFS Pinning & POAP Minting</div>
+      <ul class="wf-list">
+        <li>Screen recordings (<code>.webm</code>) captured via <code>MediaRecorder</code> are uploaded and served via authenticated blob streams.</li>
+        <li>Host concludes meeting on-chain via <code>MeetingRegistry.endMeeting(meetingId, notesHash)</code>.</li>
+        <li>Rich session metadata and AI summaries are pinned to IPFS via Pinata.</li>
+        <li>Host and attendees mint a verifiable ERC-721 receipt / POAP badge via <code>MeetingNFT.mint(meetingId, ipfsCid)</code>.</li>
+      </ul>
+    </div>
+
+    <!-- Section 3 -->
+    <h2>3. Detailed Subsystem Breakdown</h2>
+
+    <h3>3.1 Solidity Smart Contracts (Polygon Amoy & Mainnet)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Contract</th>
+            <th>Type</th>
+            <th>Key Features & Architecture</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="highlight">MeetingRegistry.sol</td>
+            <td>Custom State Machine</td>
+            <td>Full lifecycle state tracking: <code>createMeeting()</code>, <code>joinMeeting()</code>, <code>sendMessage()</code>, <code>endMeeting()</code>. Emits indexing events with IPFS CIDs and keccak256 notes hashes.</td>
+          </tr>
+          <tr>
+            <td class="highlight">MeetingNFT.sol</td>
+            <td>ERC-721 URIStorage</td>
+            <td>Verifiable proof-of-attendance receipt minter: <code>mint(meetingId, ipfsCid)</code>. Cryptographically validates caller host permissions against <code>MeetingRegistry</code> on-chain.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>3.2 WebRTC & Conferencing Hub</h3>
+    <p>
+      Vinay engineered the real-time core with a custom <code>useWebRTC</code> hook handling peer connections, track management, active speaker detection, and automatic ICE renegotiation, paired with the <code>VideoRoom.jsx</code> control center coordinating 20+ side panels and presentation modes.
+    </p>
+
+    <h3>3.3 In-Room Productivity & Procedural Audio</h3>
+    <p>
+      Created an in-browser productivity suite including <code>LiveTranscript.jsx</code> (speech-to-text with auto-scroll and export), <code>AmbientSoundMixer.jsx</code> (8 noise-synthesized soundscapes using Web Audio API), <code>AgendaTimer.jsx</code> (agenda countdown with overtime alerts), and <code>MeetingAnalytics.jsx</code> (talk-time breakdown & health metrics).
+    </p>
+
+    <h3>3.4 Embedded Wallet & Gasless UX</h3>
+    <p>
+      Designed an automatic client-side ethers.js wallet generated on signup, paired with an operator drip faucet (<code>POST /api/wallet/fund</code>) to grant new users instant testnet MATIC/POL gas without external wallet hurdles.
+    </p>
+
+    <!-- Section 4 -->
+    <h2>4. Chronological Commit Breakdown</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Hash</th>
+            <th>Date</th>
+            <th>Phase</th>
+            <th>Summary of Changes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="commit-hash">f4694f7</td><td>May 08, 2026</td><td class="highlight">Initial Architecture</td><td>Core smart contracts (MeetingRegistry, MeetingNFT), Vite frontend, and Express backend setup.</td></tr>
+          <tr><td class="commit-hash">0e8ed09</td><td>May 08, 2026</td><td class="highlight">Config</td><td>Added primary environment configuration files (.env).</td></tr>
+          <tr><td class="commit-hash">fbeff51</td><td>May 08, 2026</td><td class="highlight">Config</td><td>Structured multi-environment configs for frontend and backend.</td></tr>
+          <tr><td class="commit-hash">68b19df</td><td>May 08, 2026</td><td class="highlight">Fixes</td><td>Blob-based recording playback via apiClient; fixed auth page transparent backgrounds.</td></tr>
+          <tr><td class="commit-hash">bb38122</td><td>May 14, 2026</td><td class="highlight">Web3 Spec</td><td>Authored embedded wallet design specification for auto-generated ethers.js wallets.</td></tr>
+          <tr><td class="commit-hash">6e4a774</td><td>May 14, 2026</td><td class="highlight">User Model</td><td>Added walletFunded boolean tracking to User schema.</td></tr>
+          <tr><td class="commit-hash">ae034b2</td><td>May 14, 2026</td><td class="highlight">RPC Config</td><td>Configured Polygon Amoy testnet RPC and operator wallet environment variables.</td></tr>
+          <tr><td class="commit-hash">d37c79e</td><td>May 14, 2026</td><td class="highlight">Tooling</td><td>Added ethers.js dependency to backend for automated operator drip faucet.</td></tr>
+          <tr><td class="commit-hash">64d844d</td><td>May 14, 2026</td><td class="highlight">Faucet</td><td>Implemented POST /api/wallet/fund drip endpoint with operator wallet gas management.</td></tr>
+          <tr><td class="commit-hash">4e482f5</td><td>May 14, 2026</td><td class="highlight">Routing</td><td>Mounted wallet router at /api/wallet in backend Express server.</td></tr>
+          <tr><td class="commit-hash">429d4b1</td><td>May 14, 2026</td><td class="highlight">Embedded Wallet</td><td>Replaced MetaMask-only WalletContext with embedded ethers.js client-side wallet.</td></tr>
+          <tr><td class="commit-hash">6ad0348</td><td>May 14, 2026</td><td class="highlight">Contract Hook</td><td>Updated useMeetingContract to consume WalletContext provider instead of window.ethereum.</td></tr>
+          <tr><td class="commit-hash">b140296</td><td>May 14, 2026</td><td class="highlight">UI / HUD</td><td>Updated WalletBanner UI component for embedded wallet balance states.</td></tr>
+          <tr><td class="commit-hash">bf7a661</td><td>May 14, 2026</td><td class="highlight">Auth Hook</td><td>Hooked initWallet() execution immediately following user login and registration.</td></tr>
+          <tr><td class="commit-hash">6ebe4d1</td><td>May 14, 2026</td><td class="highlight">Tx UX</td><td>Added skip option on transaction failure and fixed network label display.</td></tr>
+          <tr><td class="commit-hash">60573c8</td><td>May 14, 2026</td><td class="highlight">Frictionless UX</td><td>Removed mandatory MetaMask prompts so standard users can enter rooms directly.</td></tr>
+          <tr><td class="commit-hash">a9053ec</td><td>Jun 29, 2026</td><td class="highlight">Major Overhaul</td><td>Full UI redesign, useWebRTC hook, signaling server (signaling.js), VideoRoom, Whiteboard, and TokenGateModal.</td></tr>
+          <tr><td class="commit-hash">cfe56e6</td><td>Jun 29, 2026</td><td class="highlight">Hygiene</td><td>Updated .gitignore rules to protect environment and build artifacts.</td></tr>
+          <tr><td class="commit-hash">e0d2f69</td><td>Jun 30, 2026</td><td class="highlight">Live Transcript</td><td>Built real-time speech-to-text transcript panel (LiveTranscript.jsx via Web Speech API).</td></tr>
+          <tr><td class="commit-hash">f84b276</td><td>Jun 30, 2026</td><td class="highlight">Ambient Audio</td><td>Built client-side synthesized ambient sound mixer (AmbientSoundMixer.jsx via Web Audio API).</td></tr>
+          <tr><td class="commit-hash">77b554a</td><td>Jun 30, 2026</td><td class="highlight">Analytics</td><td>Added real-time meeting analytics dashboard with talk-time tracking (MeetingAnalytics.jsx).</td></tr>
+          <tr><td class="commit-hash">5e780a8</td><td>Jun 30, 2026</td><td class="highlight">Agenda Timer</td><td>Implemented countdown agenda timer with per-item timers and alarms (AgendaTimer.jsx).</td></tr>
+          <tr><td class="commit-hash">6fe3164</td><td>Jun 30, 2026</td><td class="highlight">Room Integration</td><td>Wired Transcript, Ambient Mixer, Analytics, and Agenda Timer into VideoRoom shell.</td></tr>
+          <tr><td class="commit-hash">dd0503f</td><td>Jun 30, 2026</td><td class="highlight">Mobile & CORS</td><td>Fixed mobile white flash with dark root fallback, added responsive CSS, and multi-origin LAN CORS.</td></tr>
+          <tr><td class="commit-hash">7d9946e</td><td>Aug 23, 2026</td><td class="highlight">Documentation</td><td>Added root project README and architectural overview.</td></tr>
+          <tr><td class="commit-hash">c61c2c1</td><td>Aug 30, 2026</td><td class="highlight">Branding & Polish</td><td>Standardized brand identity to EtherXMeet, QRModal, and Vercel serverless fallbacks.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 5 -->
+    <h2>5. Impact & Summary</h2>
+    <p>
+      The resulting platform stands as a high-performance, resilient collaboration platform that eliminates the need for expensive third-party video infrastructure APIs while empowering organizations with cryptographic proofs of attendance and unalterable meeting histories.
+    </p>
+
+    <div class="doc-footer">
+      <span>EtherXMeet Engineering Report · Lead: Vinay G K</span>
+      <span>Generated for Local Inspection</span>
+    </div>
+  </div>
+</body>
+</html>
